@@ -1,3 +1,4 @@
+from django.core.checks import Tags
 from django.db.models import F
 from django.shortcuts import render
 from django.contrib.auth import get_user_model
@@ -143,8 +144,19 @@ def get_posts(request):
     limit = query_params.get('limit', 5)
 
     return_data = []
-    posts = PostModel.objects.all().order_by('-post_tags__tag__tagweight__weight')[off_set:off_set + limit]
+    tags = list(TagWeight.objects.filter(user=request.user).order_by('-weight').values_list('tag', flat=True))
+    tags += list(Tag.objects.exclude(id__in=tags).values_list('id', flat=True))
+    posts = []
+    for tag in tags:
+        posts += list(PostModel.objects.filter(post_tags__tag=tag).values_list('id', flat=True))
+    _post = []
+    posts = list(posts)[off_set:off_set + limit]
     for post in posts:
+        if post in _post:
+            continue
+        else:
+            _post.append(post)
+        post = PostModel.objects.get(id=post)
         tags = list(post.post_tags.values())
         images = list(post.post_images.values())
         like = PostLike.objects.filter(user=request.user, post=post).first()
